@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#205c40">
+    <title>Simulador LE10 - Análise de Vizinhança e Saltos</title>
+    <style>
+        :root { --primary: #205c40; --accent: #28a745; --bg: #f4f6f8; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); margin: 0; padding: 12px; color: #333; }
+        .app-card { background: #fff; padding: 18px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 15px; }
+        h1 { color: var(--primary); font-size: 20px; text-align: center; margin: 0 0 15px 0; font-weight: 800; }
+        .badge { background: #e8f5e9; color: var(--primary); font-size: 11px; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; border: 1px solid var(--primary); font-weight: bold;}
+        .form-group { margin-bottom: 12px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row .form-group { flex: 1; }
+        label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; background: #fafafa; }
+        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:active { background: #16402d; }
+        .metric-info { background: #eef2f5; padding: 10px; border-radius: 8px; font-size: 11px; color: #555; margin-top: 10px; line-height: 1.4; }
+        .result-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .jogo-card { background: #fff; padding: 14px; border-radius: 12px; border-left: 5px solid var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .jogo-num { font-size: 12px; font-weight: bold; color: #888; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .dezenas { font-family: 'Courier New', Courier, monospace; font-size: 18px; font-weight: bold; color: var(--primary); letter-spacing: 1px; }
+        .details { font-size: 11px; color: #444; margin-top: 8px; background: #f8f9fa; padding: 8px; border-radius: 6px; line-height: 1.5; border: 1px solid #eee; }
+        .copy-btn { background: #f0f0f0; color: #333; border: 1px solid #ccc; padding: 6px 12px; font-size: 12px; margin-top: 8px; border-radius: 6px; cursor: pointer; width: auto; }
+        .error-msg { color: #d9534f; font-size: 12px; margin-top: 4px; font-weight: bold; }
+        
+        /* Tela de Lock / PIN */
+        #login-screen { text-align: center; padding: 30px 15px; }
+        #login-screen input { text-align: center; font-size: 24px; letter-spacing: 8px; }
+    </style>
+</head>
+<body>
+
+    <!-- TELA DE LOGIN PRIVADA -->
+    <div id="login-screen" class="app-card">
+        <h1>🔒 LE10 / Expert VIP</h1>
+        <p style="font-size: 13px; color: #666;">Insira o PIN de segurança para acessar a matriz avançada:</p>
+        <div class="form-group">
+            <input type="password" id="pin_input" maxlength="8" placeholder="••••">
+            <div id="pin_erro" class="error-msg"></div>
+        </div>
+        <button onclick="validarPin()">Acessar Simulador</button>
+    </div>
+
+    <!-- TELA PRINCIPAL DO SIMULADOR -->
+    <div id="app-screen" style="display: none;">
+        <div class="app-card">
+            <h1>Mega-Sena LE10 <span class="badge">Vizinhança & Saltos</span></h1>
+            
+            <div class="form-group">
+                <label for="ultimo_sorteio">Dezenas do Último Concurso:</label>
+                <input type="text" id="ultimo_sorteio" value="24 25 28 37 47 55" placeholder="Ex: 05 12 28 35 41 52">
+                <div id="erro_input" class="error-msg"></div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="soma">Soma Alvo ($\Sigma$):</label>
+                    <input type="number" id="soma" value="187">
+                </div>
+                <div class="form-group">
+                    <label for="amplitude">Amplitude ($n_6 - n_1$):</label>
+                    <input type="number" id="amplitude" value="39" title="Amplitude 39 garante Distância Média 7.80">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="consecutivos">Consecutivos (Interno):</label>
+                    <select id="consecutivos">
+                        <option value="qualquer">Qualquer Quantidade</option>
+                        <option value="0" selected>Sem Consecutivos (0)</option>
+                        <option value="1">Exatamente 1 Par (ex: 24-25)</option>
+                        <option value="ate_1">Até 1 Par (0 ou 1)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="salto_max">Salto Máximo (Gap):</label>
+                    <input type="number" id="salto_max" value="15" placeholder="Ex: 15">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="repeticoes">Repetidas do Último:</label>
+                    <select id="repeticoes">
+                        <option value="0-2">Tolerar 0 a 2 Dezenas</option>
+                        <option value="1">Exatamente 1 Dezena</option>
+                        <option value="0">Nenhuma Dezena</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="qtd">Qtd. Jogos:</label>
+                    <input type="number" id="qtd" value="5" min="1" max="20">
+                </div>
+            </div>
+
+            <button onclick="gerarSimulacaoAvancada()">Gerar Jogos Filtrados</button>
+
+            <div class="metric-info">
+                <b>Configuração Ativa:</b><br>
+                • Distância Média: <b>7.80</b> (com Amplitude = 39)<br>
+                • Paridade: <b>3 Pares / 3 Ímpares</b><br>
+                <a href="#" onclick="bloquearApp()" style="color:#d9534f; font-weight:bold; text-decoration:none;">🔒 Bloquear Acesso</a>
+            </div>
+        </div>
+
+        <div id="resultados" class="result-list"></div>
+    </div>
+
+    <script>
+        const PIN_CORRETO = "1020";
+
+        function validarPin() {
+            let pinInserido = document.getElementById('pin_input').value;
+            if (pinInserido === PIN_CORRETO) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-screen').style.display = 'block';
+                sessionStorage.setItem('autenticado_le10', 'true');
+            } else {
+                document.getElementById('pin_erro').innerText = 'PIN Incorreto!';
+            }
+        }
+
+        function bloquearApp() {
+            sessionStorage.removeItem('autenticado_le10');
+            document.getElementById('app-screen').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'block';
+        }
+
+        if (sessionStorage.getItem('autenticado_le10') === 'true') {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'block';
+        }
+
+        function obterUltimoSorteio() {
+            let val = document.getElementById('ultimo_sorteio').value;
+            let numeros = val.replace(/,/g, ' ').trim().split(/\s+/).map(Number);
+            return [...new Set(numeros.filter(n => !isNaN(n) && n >= 1 && n <= 60))];
+        }
+
+        function calcularMetricasCompletas(s, ultimoSorteio) {
+            let soma = s.reduce((a, b) => a + b, 0);
+            let amplitude = s[5] - s[0];
+            let distMedia = amplitude / 5;
+
+            let saltos = [];
+            let paresConsecutivos = 0;
+
+            for (let i = 0; i < s.length - 1; i++) {
+                let diff = s[i+1] - s[i];
+                saltos.push(diff);
+                if (diff === 1) paresConsecutivos++;
+            }
+
+            let saltoMax = Math.max(...saltos);
+            let saltoMin = Math.min(...saltos);
+
+            let pares = s.filter(x => x % 2 === 0).length;
+            let impares = 6 - pares;
+
+            // Vizinhança Externa (em relação ao concurso anterior)
+            let repetidas = s.filter(x => ultimoSorteio.includes(x));
+            let vizinhasExt = s.filter(x => !repetidas.includes(x) && ultimoSorteio.some(u => Math.abs(u - x) === 1));
+
+            return {
+                soma, amplitude, distMedia, saltos, saltoMax, saltoMin,
+                paresConsecutivos, pares, impares, repetidas, vizinhasExt
+            };
+        }
+
+        function gerarSimulacaoAvancada() {
+            let errDiv = document.getElementById('erro_input');
+            errDiv.innerText = '';
+            
+            let ultimoSorteio = obterUltimoSorteio();
+            if (ultimoSorteio.length !== 6) {
+                errDiv.innerText = 'Insira exatamente 6 dezenas válidas do último sorteio.';
+                return;
+            }
+
+            let qtd = parseInt(document.getElementById('qtd').value);
+            let somaAlvo = parseInt(document.getElementById('soma').value);
+            let amplitudeAlvo = parseInt(document.getElementById('amplitude').value);
+            let modoConsecutivos = document.getElementById('consecutivos').value;
+            let saltoMaxPermitido = parseInt(document.getElementById('salto_max').value) || 60;
+            let repOpcao = document.getElementById('repeticoes').value;
+
+            let resDiv = document.getElementById('resultados');
+            resDiv.innerHTML = '<div style="text-align:center; color:#666; padding:15px;">Filtrando matriz LE10 por Vizinhança, Saltos e Amplitude...</div>';
+
+            setTimeout(() => {
+                resDiv.innerHTML = '';
+                let jogosValidos = [];
+                let tentativas = 0;
+
+                while (jogosValidos.length < qtd && tentativas < 400000) {
+                    tentativas++;
+                    let nums = [];
+                    while(nums.length < 6) {
+                        let r = Math.floor(Math.random() * 60) + 1;
+                        if(!nums.includes(r)) nums.push(r);
+                    }
+                    nums.sort((a, b) => a - b);
+                    
+                    let m = calcularMetricasCompletas(nums, ultimoSorteio);
+
+                    // Validação de Filtros
+                    let condSoma = m.soma === somaAlvo;
+                    let condAmplitude = m.amplitude === amplitudeAlvo;
+                    let condParidade = m.pares === 3;
+                    let condSaltoMax = m.saltoMax <= saltoMaxPermitido;
+
+                    // Filtro de Consecutivos (Vizinhança Interna)
+                    let condConsec = true;
+                    if (modoConsecutivos === "0") condConsec = m.paresConsecutivos === 0;
+                    else if (modoConsecutivos === "1") condConsec = m.paresConsecutivos === 1;
+                    else if (modoConsecutivos === "ate_1") condConsec = m.paresConsecutivos <= 1;
+
+                    // Filtro de Repetição do Concurso Anterior
+                    let condRep = true;
+                    if (repOpcao === "0-2") condRep = m.repetidas.length <= 2;
+                    else if (repOpcao === "1") condRep = m.repetidas.length === 1;
+                    else if (repOpcao === "0") condRep = m.repetidas.length === 0;
+
+                    if (condSoma && condAmplitude && condParidade && condSaltoMax && condConsec && condRep) {
+                        jogosValidos.push({ dezenas: nums, metricas: m });
+                    }
+                }
+
+                if(jogosValidos.length === 0) {
+                    resDiv.innerHTML = "<div class='app-card'>Nenhum jogo atendeu a todos os critérios simultaneamente. Tente aumentar o Salto Máximo ou ajustar os Consecutivos.</div>";
+                    return;
+                }
+
+                jogosValidos.forEach((item, i) => {
+                    let txt = item.dezenas.map(n => String(n).padStart(2, '0')).join(' - ');
+                    let saltosTxt = item.metricas.saltos.join(', ');
+                    let repTxt = item.metricas.repetidas.length > 0 ? item.metricas.repetidas.map(n => String(n).padStart(2, '0')).join(', ') : 'Nenhuma';
+                    let vizExtTxt = item.metricas.vizinhasExt.length > 0 ? item.metricas.vizinhasExt.map(n => String(n).padStart(2, '0')).join(', ') : 'Nenhuma';
+
+                    resDiv.innerHTML += `
+                        <div class="jogo-card">
+                            <div class="jogo-num">
+                                <span>JOGO ${String(i+1).padStart(2, '0')}</span> 
+                                <span>3P / 3Í</span>
+                            </div>
+                            <div class="dezenas">${txt}</div>
+                            <div class="details">
+                                📊 <b>Soma:</b> ${item.metricas.soma} | <b>Amplitude:</b> ${item.metricas.amplitude} ($\bar{D} = ${item.metricas.distMedia.toFixed(2)}$)<br>
+                                🦘 <b>Saltos (Gaps):</b> [${saltosTxt}] (Máx: ${item.metricas.saltoMax})<br>
+                                🔗 <b>Consecutivos (Interno):</b> ${item.metricas.paresConsecutivos} par(es)<br>
+                                🔄 <b>Repetida(s) do último:</b> ${repTxt}<br>
+                                🎯 <b>Vizinha(s) do último:</b> ${vizExtTxt}
+                            </div>
+                            <button class="copy-btn" onclick="navigator.clipboard.writeText('${txt}')">Copiar Dezenas</button>
+                        </div>`;
+                });
+            }, 100);
+        }
+    </script>
+</body>
+</html>
